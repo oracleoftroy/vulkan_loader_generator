@@ -104,16 +104,33 @@ void generate_impl(const pugi::xml_document &doc, fmt::MemoryWriter &impl)
 {
 	const std::unordered_map<std::string, pugi::xml_node> commands = [](const auto &doc)
 	{
+		std::unordered_map<std::string, std::string> aliases;
 		std::unordered_map<std::string, pugi::xml_node> result;
 		auto command_elements = doc.select_nodes("/registry/commands/command");
 		for (auto &command : command_elements)
 		{
-			result.insert(
-			{
-					command.node().child("proto").child_value("name"),
-					command.node()
-			});
+			const auto &node = command.node();
+
+			if (node.attribute("alias"))
+				aliases.insert({node.attribute("name").value(), node.attribute("alias").value()});
+			else
+				result.insert({node.child("proto").child_value("name"), node});
 		}
+
+		for (auto &alias : aliases)
+		{
+			if (auto iter = result.find(alias.second);
+				iter != end(result))
+			{
+				// Copy the node and set the name to the alias before storing. This seems
+				// a bit hacky, but pugixml doesn't support copying the node itself, just
+				// in relationship to a document. So we make a new sibling and update the name.
+				auto node = iter->second.parent().append_copy(iter->second);
+				node.child("proto").child("name").text().set(alias.first.c_str());
+				result.insert({alias.first, std::move(node)});
+			}
+		}
+
 		return result;
 	}(doc);
 
@@ -169,38 +186,41 @@ R"(#include <vulkan/vulkan.h>
 	auto version = doc.select_node("/registry/types/type[@category='define' and ./name/text() = 'VK_HEADER_VERSION']/text()[last()]");
 	impl.write("#if VK_HEADER_VERSION != {0}\n\t#error \"Vulkan header version does not match\"\n#endif\n\n", version.node().value());
 
-	// iterate all core features and create prototypes and definitions
-	auto feature = doc.select_node("/registry/feature").node();
-
-	// First, define functions for the core vulkan api
-	impl.write("#if defined({0})\n\n", feature.attribute("name").value());
-	add_comment(feature, impl);
-	impl << "\n";
-
-	// generate loaders for instance and device functions
 	fmt::MemoryWriter instance_body;
 	fmt::MemoryWriter device_body;
-	std::array<std::string, 3> global_functions = { "vkCreateInstance"s, "vkEnumerateInstanceExtensionProperties"s, "vkEnumerateInstanceLayerProperties"s };
 
-	auto required_commands = feature.select_nodes("require[command]");
-	for (auto &item : required_commands)
+	// iterate all core features and create prototypes and definitions
+	for (auto &feature_item : doc.select_nodes("/registry/feature"))
 	{
-		add_comment(item.node(), impl);
+		const auto &feature = feature_item.node();
+
+		// First, define functions for the core vulkan api
+		impl.write("#if defined({0})\n\n", feature.attribute("name").value());
+		add_comment(feature, impl);
 		impl << "\n";
 
-		for (auto &cmd : item.node().children("command"))
+		// generate loaders for instance and device functions
+		std::array<std::string, 3> global_functions = { "vkCreateInstance"s, "vkEnumerateInstanceExtensionProperties"s, "vkEnumerateInstanceLayerProperties"s };
+
+		auto required_commands = feature.select_nodes("require[command]");
+		for (auto &item : required_commands)
 		{
-			std::string name = cmd.attribute("name").value();
-			define_command(name, impl);
+			add_comment(item.node(), impl);
+			impl << "\n";
 
-			// if this command is one of the three global functions, filter it out, it will be instanciated elsewhere
-			if (std::find(begin(global_functions), end(global_functions), name) == end(global_functions))
-				instance_body.write("\tpfn_{0} = (PFN_{0})vkGetInstanceProcAddr(vulkan, \"{0}\");\n", name);
+			for (auto &cmd : item.node().children("command"))
+			{
+				std::string name = cmd.attribute("name").value();
+				define_command(name, impl);
+
+				// if this command is one of the three global functions, filter it out, it will be instanciated elsewhere
+				if (std::find(begin(global_functions), end(global_functions), name) == end(global_functions))
+					instance_body.write("\tpfn_{0} = (PFN_{0})vkGetInstanceProcAddr(vulkan, \"{0}\");\n", name);
+			}
 		}
+
+		impl.write("#endif // defined({0})\n\n", feature.attribute("name").value());
 	}
-
-	impl.write("#endif // defined({0})\n\n", feature.attribute("name").value());
-
 	// load the vulkan extensions (registry -> extensions)
 	// This describes every feature and whether it is a core feature or requires a particular extension to be enabled
 	// structure
@@ -221,6 +241,11 @@ R"(#include <vulkan/vulkan.h>
 		for (auto &require_nodes : extension.node().select_nodes("require[command]"))
 		{
 			auto require = require_nodes.node();
+
+			// extensions marked with a feature attribute contain duplicate definitons of commands, so skip those
+			if (require.attribute("feature"))
+				continue;
+
 			if (require.attribute("extension"))
 			{
 				impl.write("#if defined({0})\n\n", require.attribute("extension").value());
