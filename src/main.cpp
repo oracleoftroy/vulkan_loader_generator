@@ -4,7 +4,7 @@
 
 #include <algorithm>
 #include <array>
-#include <experimental/filesystem>
+#include <filesystem>
 #include <fstream>
 #include <stdexcept>
 #include <string>
@@ -13,9 +13,9 @@
 #include <vector>
 
 using namespace std::literals::string_literals;
-namespace fs = std::experimental::filesystem;
+namespace fs = std::filesystem;
 
-void generate_content(const pugi::xml_document &doc, fmt::MemoryWriter &header, fmt::MemoryWriter &impl);
+void generate_content(const pugi::xml_document &doc, fmt::memory_buffer &header, fmt::memory_buffer &impl);
 
 int main(int argc, char *argv[])
 {
@@ -26,28 +26,28 @@ int main(int argc, char *argv[])
 
 		options.add_options()
 			("h,help", "Show this help")
-			("i,in", "Vulkan API Registry file (vk.xml) file location", cxxopts::value<std::string>())
+			("i,in", "path to Vulkan API Registry file (vk.xml)", cxxopts::value<std::string>())
 			("o,out", "output directory", cxxopts::value<std::string>())
 			;
 
 		options.parse_positional({ "in"s, "out"s });
 
-		options.parse(argc, argv);
-		if (options.count("help"))
+		auto parsed_options = options.parse(argc, argv);
+		if (parsed_options.count("help"))
 		{
 			std::cout << options.help();
 			exit(0);
 		}
 
-		if (!options.count("in"))
+		if (!parsed_options.count("in"))
 		{
 			std::cerr << "ERROR: No input file specified\n";
 			std::cerr << options.help();
 			exit(1);
 		}
 
-		auto in_file = fs::u8path(options["in"].as<std::string>());
-		auto output_dir = options.count("out") ? fs::u8path(options["out"].as<std::string>()) : fs::current_path();
+		auto in_file = fs::u8path(parsed_options["in"].as<std::string>());
+		auto output_dir = parsed_options.count("out") ? fs::u8path(parsed_options["out"].as<std::string>()) : fs::current_path();
 
 		pugi::xml_document doc;
 
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
 			exit(1);
 		}
 
-		fmt::MemoryWriter header, impl;
+		fmt::memory_buffer header, impl;
 		std::cout << "Generating loader\n";
 		generate_content(doc, header, impl);
 
@@ -68,16 +68,17 @@ int main(int argc, char *argv[])
 		std::ofstream impl_file(impl_path);
 
 		std::cout << "Writing " << header_path.u8string() << '\n';
-		header_file << header.str();
+		header_file << to_string(header);
 
 		std::cout << "Writing " << impl_path.u8string() << '\n';
-		impl_file << impl.str();
+		impl_file << to_string(impl);
 
 		std::cout << "Done\n";
 	}
 	catch (std::exception &e)
 	{
 		std::cerr << e.what();
+		throw;
 	}
 }
 
@@ -93,14 +94,14 @@ std::string get_full_text(const pugi::xml_node &node)
 		return result;
 }
 
-void add_comment(const pugi::xml_node &node, fmt::MemoryWriter &out)
+void add_comment(const pugi::xml_node &node, fmt::memory_buffer &out)
 {
 	auto comment = node.attribute("comment");
 	if (comment)
-		out.write("// {0}\n", comment.value());
+		format_to(out, "// {0}\n", comment.value());
 };
 
-void generate_impl(const pugi::xml_document &doc, fmt::MemoryWriter &impl)
+void generate_impl(const pugi::xml_document &doc, fmt::memory_buffer &impl)
 {
 	const std::unordered_map<std::string, pugi::xml_node> commands = [](const auto &doc)
 	{
@@ -144,7 +145,7 @@ void generate_impl(const pugi::xml_document &doc, fmt::MemoryWriter &impl)
 		add_comment(command, out);
 
 		// Declare static pointer to function
-		out.write("static PFN_{0} pfn_{0};\n", name);
+		format_to(out, "static PFN_{0} pfn_{0};\n", name);
 
 		// Declare wrapper function
 		std::vector<std::string> proto;
@@ -158,18 +159,16 @@ void generate_impl(const pugi::xml_document &doc, fmt::MemoryWriter &impl)
 		for (auto &node : command.select_nodes("param/name/text()"))
 			param_names.emplace_back(node.node().value());
 
-		out.write("VKAPI_ATTR {0}({1})\n",
+		format_to(out, "VKAPI_ATTR {0}({1})\n",
 			fmt::join(begin(proto), end(proto), " "),
 			fmt::join(begin(params), end(params), ", "));
-		out << "{\n";
-		out.write("\tassert(pfn_{0});\n", name);
-		out.write("\treturn pfn_{0}({1});\n",
+		format_to(out, "{{\n\tassert(pfn_{0});\n", name);
+		format_to(out, "\treturn pfn_{0}({1});\n}}\n\n",
 			name,
 			fmt::join(begin(param_names), end(param_names), ", "));
-		out << "}\n\n";
 	};
 
-	impl <<
+	format_to(impl, "{}",
 R"(#include <vulkan/vulkan.h>
 #include <assert.h>
 
@@ -180,14 +179,14 @@ R"(#include <vulkan/vulkan.h>
 #pragma warning(disable: 4098)
 #endif
 
-)";
+)");
 
 	// sanity check, make sure this file matches the header version of vulkan.h
 	auto version = doc.select_node("/registry/types/type[@category='define' and ./name/text() = 'VK_HEADER_VERSION']/text()[last()]");
-	impl.write("#if VK_HEADER_VERSION != {0}\n\t#error \"Vulkan header version does not match\"\n#endif\n\n", version.node().value());
+	format_to(impl, "#if VK_HEADER_VERSION != {0}\n\t#error \"Vulkan header version does not match\"\n#endif\n\n", version.node().value());
 
-	fmt::MemoryWriter instance_body;
-	fmt::MemoryWriter device_body;
+	fmt::memory_buffer instance_body;
+	fmt::memory_buffer device_body;
 
 	// iterate all core features and create prototypes and definitions
 	for (auto &feature_item : doc.select_nodes("/registry/feature"))
@@ -195,9 +194,9 @@ R"(#include <vulkan/vulkan.h>
 		const auto &feature = feature_item.node();
 
 		// First, define functions for the core vulkan api
-		impl.write("#if defined({0})\n\n", feature.attribute("name").value());
+		format_to(impl, "#if defined({0})\n\n", feature.attribute("name").value());
 		add_comment(feature, impl);
-		impl << "\n";
+		format_to(impl, "\n");
 
 		// generate loaders for instance and device functions
 		std::array<std::string, 3> global_functions = { "vkCreateInstance"s, "vkEnumerateInstanceExtensionProperties"s, "vkEnumerateInstanceLayerProperties"s };
@@ -206,20 +205,20 @@ R"(#include <vulkan/vulkan.h>
 		for (auto &item : required_commands)
 		{
 			add_comment(item.node(), impl);
-			impl << "\n";
+			format_to(impl, "\n");
 
 			for (auto &cmd : item.node().children("command"))
 			{
 				std::string name = cmd.attribute("name").value();
 				define_command(name, impl);
 
-				// if this command is one of the three global functions, filter it out, it will be instanciated elsewhere
+				// if this command is one of the three global functions, filter it out, it will be instantiated elsewhere
 				if (std::find(begin(global_functions), end(global_functions), name) == end(global_functions))
-					instance_body.write("\tpfn_{0} = (PFN_{0})vkGetInstanceProcAddr(vulkan, \"{0}\");\n", name);
+					format_to(instance_body, "\tpfn_{0} = (PFN_{0})vkGetInstanceProcAddr(vulkan, \"{0}\");\n", name);
 			}
 		}
 
-		impl.write("#endif // defined({0})\n\n", feature.attribute("name").value());
+		format_to(impl, "#endif // defined({0})\n\n", feature.attribute("name").value());
 	}
 	// load the vulkan extensions (registry -> extensions)
 	// This describes every feature and whether it is a core feature or requires a particular extension to be enabled
@@ -231,12 +230,12 @@ R"(#include <vulkan/vulkan.h>
 
 	for (auto &extension : extensions.select_nodes("extension[require/command]"))
 	{
-		impl.write("#if defined({0})\n\n", extension.node().attribute("name").value());
-		instance_body.write("\n#if defined({0})\n", extension.node().attribute("name").value());
+		format_to(impl, "#if defined({0})\n\n", extension.node().attribute("name").value());
+		format_to(instance_body, "\n#if defined({0})\n", extension.node().attribute("name").value());
 
 		auto is_device = extension.node().attribute("type").value() == "device"s;
 		if (is_device)
-			device_body.write("\n#if defined({0})\n", extension.node().attribute("name").value());
+			format_to(device_body, "\n#if defined({0})\n", extension.node().attribute("name").value());
 
 		for (auto &require_nodes : extension.node().select_nodes("require[command]"))
 		{
@@ -248,38 +247,38 @@ R"(#include <vulkan/vulkan.h>
 
 			if (require.attribute("extension"))
 			{
-				impl.write("#if defined({0})\n\n", require.attribute("extension").value());
-				instance_body.write("\n#if defined({0})\n", require.attribute("extension").value());
+				format_to(impl, "#if defined({0})\n\n", require.attribute("extension").value());
+				format_to(instance_body, "\n#if defined({0})\n", require.attribute("extension").value());
 				if (is_device)
-					device_body.write("\n#if defined({0})\n", require.attribute("extension").value());
+				format_to(device_body, "\n#if defined({0})\n", require.attribute("extension").value());
 			}
 
 			for (auto &command : require.children("command"))
 			{
 				define_command(command.attribute("name").value(), impl);
-				instance_body.write("\tpfn_{0} = (PFN_{0})vkGetInstanceProcAddr(vulkan, \"{0}\");\n", command.attribute("name").value());
+				format_to(instance_body, "\tpfn_{0} = (PFN_{0})vkGetInstanceProcAddr(vulkan, \"{0}\");\n", command.attribute("name").value());
 
 				if (is_device)
-					device_body.write("\tpfn_{0} = (PFN_{0})vkGetDeviceProcAddr(device, \"{0}\");\n", command.attribute("name").value());
+					format_to(device_body, "\tpfn_{0} = (PFN_{0})vkGetDeviceProcAddr(device, \"{0}\");\n", command.attribute("name").value());
 			}
 
 			if (require.attribute("extension"))
 			{
-				impl.write("#endif // defined({0})\n\n", require.attribute("extension").value());
-				instance_body.write("#endif // defined({0})\n", require.attribute("extension").value());
+				format_to(impl, "#endif // defined({0})\n\n", require.attribute("extension").value());
+				format_to(instance_body, "#endif // defined({0})\n", require.attribute("extension").value());
 				if (is_device)
-					device_body.write("#endif // defined({0})\n", require.attribute("extension").value());
+					format_to(device_body, "#endif // defined({0})\n", require.attribute("extension").value());
 			}
 		}
 
-		impl.write("#endif // defined({0})\n\n", extension.node().attribute("name").value());
-		instance_body.write("#endif // defined({0})\n", extension.node().attribute("name").value());
+		format_to(impl, "#endif // defined({0})\n\n", extension.node().attribute("name").value());
+		format_to(instance_body, "#endif // defined({0})\n", extension.node().attribute("name").value());
 		if (is_device)
-			device_body.write("#endif // defined({0})\n", extension.node().attribute("name").value());
+			format_to(device_body, "#endif // defined({0})\n", extension.node().attribute("name").value());
 	}
 
 	// create loader for global functions
-	impl <<
+	format_to(impl, "{}",
 R"(void vulkan_loader_init(PFN_vkGetInstanceProcAddr get_address)
 {
 	pfn_vkGetInstanceProcAddr = get_address;
@@ -288,25 +287,25 @@ R"(void vulkan_loader_init(PFN_vkGetInstanceProcAddr get_address)
 	pfn_vkEnumerateInstanceLayerProperties = (PFN_vkEnumerateInstanceLayerProperties)vkGetInstanceProcAddr(0, "vkEnumerateInstanceLayerProperties");
 }
 
-)";
+)");
 
-	// create loader for instance functions
-	impl << "void vulkan_load_instance_procs(VkInstance vulkan)\n"
-		<< "{\n"
-		<< instance_body.str()
-		<< "}\n\n";
+	// create loader for instance and device functions
+	format_to(impl,
+R"(void vulkan_load_instance_procs(VkInstance vulkan)
+{{
+{0}}}
 
-	// create loader for device functions
-	impl << "void vulkan_load_device_procs(VkDevice device)\n"
-		<< "{\n"
-		<< device_body.str()
-		<< "}\n\n";
+void vulkan_load_device_procs(VkDevice device)
+{{
+{1}}}
+
+)", to_string(instance_body), to_string(device_body));
 }
 
-void generate_header(fmt::MemoryWriter &header)
+void generate_header(fmt::memory_buffer &header)
 {
 	// write the header
-	header <<
+	format_to(header, "{}",
 R"(#pragma once
 
 #if !defined(VULKAN_H_)
@@ -333,10 +332,10 @@ void vulkan_load_device_procs(VkDevice device);
 #if defined(__cplusplus)
 }
 #endif // defined(__cplusplus)
-)";
+)");
 }
 
-void generate_content(const pugi::xml_document &doc, fmt::MemoryWriter &header, fmt::MemoryWriter &impl)
+void generate_content(const pugi::xml_document &doc, fmt::memory_buffer &header, fmt::memory_buffer &impl)
 {
 	generate_impl(doc, impl);
 	generate_header(header);

@@ -5,15 +5,14 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
 option(WARN_AS_ERROR "Treat warnings as errors")
 
-find_package(pugixml REQUIRED)
+find_package(pugixml CONFIG REQUIRED)
 find_package(fmt REQUIRED)
 find_path(CXXOPTS_INCLUDE_DIR "cxxopts.hpp")
 
 add_executable(vgen src/main.cpp)
 target_compile_features(vgen PUBLIC cxx_std_17)
 target_include_directories(vgen PRIVATE ${CXXOPTS_INCLUDE_DIR})
-target_link_libraries(vgen PRIVATE pugixml)
-target_link_libraries(vgen PRIVATE fmt::fmt-header-only)
+target_link_libraries(vgen PRIVATE pugixml fmt::fmt-header-only)
 
 if (MSVC)
 	# multi-process build
