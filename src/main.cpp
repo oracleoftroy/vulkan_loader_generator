@@ -176,13 +176,6 @@ void generate_impl(const pugi::xml_document &doc, fmt::memory_buffer &impl)
 R"(#include <vulkan/vulkan.h>
 #include <assert.h>
 
-#if defined(_MSC_VER)
-// disable warning: 'void' function returning a value
-// Wrapper functions return whatever their function pointer returns, and the types should always match.
-// MSC warns on void f() { return p_f(); } where p_f() is also returning void
-#pragma warning(disable: 4098)
-#endif
-
 )");
 
 	// sanity check, make sure this file matches the header version of vulkan.h
