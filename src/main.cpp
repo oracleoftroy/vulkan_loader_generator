@@ -8,11 +8,12 @@
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-using namespace std::literals::string_literals;
+using namespace std::literals;
 namespace fs = std::filesystem;
 
 void generate_content(const pugi::xml_document &doc, fmt::memory_buffer &header, fmt::memory_buffer &impl);
@@ -162,10 +163,13 @@ void generate_impl(const pugi::xml_document &doc, fmt::memory_buffer &impl)
 		format_to(out, "VKAPI_ATTR {0}({1})\n",
 			fmt::join(begin(proto), end(proto), " "),
 			fmt::join(begin(params), end(params), ", "));
-		format_to(out, "{{\n\tassert(pfn_{0});\n", name);
-		format_to(out, "\treturn pfn_{0}({1});\n}}\n\n",
-			name,
-			fmt::join(begin(param_names), end(param_names), ", "));
+		format_to(out, "{{\n\tassert(pfn_{0});\n\t", name);
+
+		bool returns_void = command.select_node("proto/type").node().text().as_string() == "void"sv;
+		if (!returns_void)
+			format_to(out, "return ");
+
+		format_to(out, "pfn_{0}({1});\n}}\n\n", name, fmt::join(begin(param_names), end(param_names), ", "));
 	};
 
 	format_to(impl, "{}",
