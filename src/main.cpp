@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 	}
 	catch (std::exception &e)
 	{
-		std::cerr << e.what();
+		std::cerr << e.what() << '\n';
 		throw;
 	}
 }
@@ -107,33 +107,48 @@ void generate_impl(const pugi::xml_document &doc, fmt::memory_buffer &impl)
 	const std::unordered_map<std::string, pugi::xml_node> commands = [](const auto &doc)
 	{
 		std::unordered_map<std::string, std::string> aliases;
-		std::unordered_map<std::string, pugi::xml_node> result;
+		std::unordered_map<std::string, pugi::xml_node> command_map;
 		auto command_elements = doc.select_nodes("/registry/commands/command");
 		for (auto &command : command_elements)
 		{
 			const auto &node = command.node();
 
 			if (node.attribute("alias"))
-				aliases.insert({node.attribute("name").value(), node.attribute("alias").value()});
+				aliases.emplace(node.attribute("name").value(), node.attribute("alias").value());
 			else
-				result.insert({node.child("proto").child_value("name"), node});
+				command_map.emplace(node.child("proto").child_value("name"), node);
 		}
 
 		for (auto &alias : aliases)
 		{
-			if (auto iter = result.find(alias.second);
-				iter != end(result))
+			std::string command_name = alias.second;
+			auto iter = command_map.find(command_name);
+
+			// The alias can refer to another alias, so keep looking up aliases until we find something in the command map
+			while (iter == end(command_map))
 			{
-				// Copy the node and set the name to the alias before storing. This seems
-				// a bit hacky, but pugixml doesn't support copying the node itself, just
-				// in relationship to a document. So we make a new sibling and update the name.
-				auto node = iter->second.parent().append_copy(iter->second);
-				node.child("proto").child("name").text().set(alias.first.c_str());
-				result.insert({alias.first, std::move(node)});
+				if (auto alias_iter = aliases.find(command_name);
+					alias_iter == end(aliases))
+					break;
+				else
+				{
+					command_name = alias_iter->second;
+					iter = command_map.find(command_name);
+				}
 			}
+
+			if (iter == end(command_map))
+				throw std::runtime_error(fmt::format("Alias '{0}' not found in map", alias.second));
+
+			// Copy the node and set the name to the alias before storing. This seems
+			// a bit hacky, but pugixml doesn't support copying the node itself, just
+			// in relationship to a document. So we make a new sibling and update the name.
+			auto node = iter->second.parent().append_copy(iter->second);
+			node.child("proto").child("name").text().set(alias.first.c_str());
+			command_map.emplace(alias.first, std::move(node));
 		}
 
-		return result;
+		return command_map;
 	}(doc);
 
 	auto define_command = [&](const auto &name, auto &out)
