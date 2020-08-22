@@ -1,42 +1,17 @@
 cmake_minimum_required(VERSION 3.8)
 project(vgen VERSION 1.0.0)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+include(cmake/PreventInSourceBuilds.cmake)
+include(cmake/StandardProjectSettings.cmake)
+include(cmake/CompilerWarnings.cmake)
 
-option(WARN_AS_ERROR "Treat warnings as errors")
+add_library(project_options INTERFACE)
+target_compile_features(project_options INTERFACE cxx_std_20)
+set_project_warnings(project_options)
 
-find_package(pugixml CONFIG REQUIRED)
-find_package(fmt REQUIRED)
-find_path(CXXOPTS_INCLUDE_DIR "cxxopts.hpp")
+add_subdirectory(src)
 
-add_executable(vgen src/main.cpp)
-target_compile_features(vgen PUBLIC cxx_std_17)
-target_include_directories(vgen PRIVATE ${CXXOPTS_INCLUDE_DIR})
-target_link_libraries(vgen PRIVATE pugixml fmt::fmt-header-only)
-
-if (MSVC)
-	# multi-process build
-	target_compile_options(vgen PUBLIC /MP)
-
-	# enable extra warnings
-	target_compile_options(vgen PUBLIC /W4)
-
-	# treat warnings as errors
-	if (WARN_AS_ERROR)
-		target_compile_options(vgen PUBLIC /WX)
-
-		# suppress warning in pugixml: non dll-interface class 'std::exception' used as base for dll-interface class 'pugi::xpath_exception'
-		target_compile_options(vgen PUBLIC /wd4275)
-
-		# suppress deprecation warnings for std::allocator in fmt 4.0.0
-		target_compile_definitions(vgen PUBLIC _SILENCE_CXX17_OLD_ALLOCATOR_MEMBERS_DEPRECATION_WARNING)
-	endif()
-else()
-	# enable extra warnings
-	target_compile_options(vgen PUBLIC -Wall -Wextra -Wpedantic)
-
-	# treat warnings as errors
-	if (WARN_AS_ERROR)
-		target_compile_options(vgen PUBLIC -Werror)
-	endif()
+if(BUILD_TESTING)
+	enable_testing()
+	add_subdirectory(tests)
 endif()
