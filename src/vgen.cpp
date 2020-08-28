@@ -619,11 +619,11 @@ void vgen_load_device_procs(VkDevice device, struct vgen_vulkan_api *vk);
 	#define VKLG_ASSERT_MACRO assert;
 #endif
 
-#if VK_HEADER_VERSION > {0} && !defined(VK_NO_PROTOTYPES) && !defined(VGEN_VULKAN_LOADER_DISABLE_HEADER_CHECK)
-	#error "Generating prototypes for a version of vulkan than the loader expects, you may experience linking errors. " \
-		"Please check for a newer version of vulkan_loader at https://github.com/oracleoftroy/vulkan_loader " \
-		"or define VK_NO_PROTOTYPES for a purely dynamic interface. " \
-		"You may also define VGEN_VULKAN_LOADER_DISABLE_HEADER_CHECK to skip this check."
+#if VK_HEADER_VERSION > {0} && !defined(VK_NO_PROTOTYPES) && !defined(VGEN_VULKAN_LOADER_DISABLE_VERSION_CHECK)
+// If you get an error here, the version of vulkan.h you are using is newer than this generator was expecting. Things should mostly work, but newer functions will not have definitions created and will cause linking errors.
+// Please check for a newer version of vulkan_loader at https://github.com/oracleoftroy/vulkan_loader
+// define VK_NO_PROTOTYPES for a purely dynamic interface or disable this check by defining VGEN_VULKAN_LOADER_DISABLE_VERSION_CHECK.
+#error vulkan.h is newer than vulkan_loader. Define VK_NO_PROTOTYPES for the dynamic interface or disable this check via VGEN_VULKAN_LOADER_DISABLE_VERSION_CHECK.
 #endif
 
 #if defined(VK_NO_PROTOTYPES)
