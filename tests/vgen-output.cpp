@@ -896,3 +896,125 @@ TEST_CASE("write extension pointer init struct impl", "[writer]")
 		}
 	}
 }
+
+TEST_CASE("Filter non-device commands")
+{
+	// clang-format off
+	const auto commands = std::unordered_map<std::string, vgen::command_data>
+	{
+		{
+			"test_void"s, vgen::command_data
+			{
+				.name = "test_void",
+				.prototype = "void test_void",
+				.params = "Foo foo, Bar bar",
+				.param_names = "foo, bar",
+				.comment = "// comment\n",
+				.returns_void = true,
+				.is_device_command = false,
+			},
+		},
+		{
+			"test_int"s, vgen::command_data
+			{
+				.name = "test_int",
+				.prototype = "int test_int",
+				.params = "Foo foo, Bar bar",
+				.param_names = "foo, bar",
+				.comment = "",
+				.returns_void = false,
+				.is_device_command = true,
+			},
+		},
+	};
+	// clang-format on
+
+	SECTION("get_device_features")
+	{
+		auto sections = std::vector{
+			vgen::section_data{
+				.comment = "// section comment\n",
+				.commands = {"test_void"s, "test_int"s},
+			},
+		};
+
+		auto features = std::vector{vgen::feature_data{
+			.name = "test_feature",
+			.comment = "// test feature comment\n",
+			.sections = sections,
+		}};
+
+		auto device_features = get_device_features(features, commands);
+		REQUIRE(device_features.at(0).sections.at(0).commands.size() == 1);
+		REQUIRE(device_features.at(0).sections.at(0).commands.at(0) == "test_int");
+	}
+
+	SECTION("get_device_features filters empty sections")
+	{
+		auto sections = std::vector{
+			vgen::section_data{
+				.comment = "// section comment\n",
+				.commands = {"test_int"s},
+			},
+			vgen::section_data{
+				.comment = "// section comment\n",
+				.commands = {"test_void"s},
+			},
+		};
+
+		auto features = std::vector{vgen::feature_data{
+			.name = "test_feature",
+			.comment = "// test feature comment\n",
+			.sections = sections,
+		}};
+
+		auto device_features = get_device_features(features, commands);
+		REQUIRE(device_features.at(0).sections.size() == 1);
+		REQUIRE(device_features.at(0).sections.at(0).commands.size() == 1);
+		REQUIRE(device_features.at(0).sections.at(0).commands.at(0) == "test_int");
+	}
+
+	SECTION("get_device_features filters empty features")
+	{
+		auto sections = std::vector{
+			vgen::section_data{
+				.comment = "// section comment\n",
+				.commands = {"test_void"s},
+			},
+		};
+
+		auto features = std::vector{vgen::feature_data{
+			.name = "test_feature",
+			.comment = "// test feature comment\n",
+			.sections = sections,
+		}};
+
+		auto device_features = get_device_features(features, commands);
+		REQUIRE(device_features.size() == 0);
+	}
+
+	SECTION("get_device_extensions")
+	{
+		auto extensions = vgen::extension_map{
+			{std::set{"extension1"s}, "test_void"},
+			{std::set{"extension1"s}, "test_int"},
+		};
+
+		auto device_extensions = get_device_extensions(extensions, commands);
+
+		REQUIRE(device_extensions.count(std::set{"extension1"s}) == 1);
+		REQUIRE(device_extensions.lower_bound(std::set{"extension1"s})->second == "test_int");
+	}
+
+	SECTION("get_device_extensions 2")
+	{
+		auto extensions = vgen::extension_map{
+			{std::set{"extension1"s}, "test_void"},
+		};
+
+		auto device_extensions = get_device_extensions(extensions, commands);
+
+		REQUIRE(device_extensions.empty());
+		REQUIRE(device_extensions.count(std::set{"extension1"s}) == 0);
+	}
+}

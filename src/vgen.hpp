@@ -74,4 +74,7 @@ namespace vgen
 
 	void write_header(fmt::memory_buffer &out, const std::vector<feature_data> &features, const extension_map &extensions, const command_map &commands);
 	void write_source(fmt::memory_buffer &out, const std::string_view vulkan_header_version, const std::vector<feature_data> &features, const extension_map &extensions, const command_map &commands);
+
+	std::vector<feature_data> get_device_features(const std::vector<feature_data> &features, const command_map &commands);
+	extension_map get_device_extensions(const extension_map &extensions, const command_map &commands);
 }

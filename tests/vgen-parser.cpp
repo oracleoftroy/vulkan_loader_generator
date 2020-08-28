@@ -81,6 +81,20 @@ TEST_CASE("command parsing", "[command][parser]")
 		REQUIRE(command.prototype == "void vkCmdFillBuffer");
 		REQUIRE(command.returns_void == true);
 	}
+
+	SECTION("vkDestroyInstance is not device level")
+	{
+		auto vkDestroyInstanceCmd = load_fragment(R"(        <command>
+            <proto><type>void</type> <name>vkDestroyInstance</name></proto>
+            <param optional="true" externsync="true"><type>VkInstance</type> <name>instance</name></param>
+            <param optional="true">const <type>VkAllocationCallbacks</type>* <name>pAllocator</name></param>
+            <implicitexternsyncparams>
+                <param>all sname:VkPhysicalDevice objects enumerated from pname:instance</param>
+            </implicitexternsyncparams>
+        </command>
+)");
+		REQUIRE(vgen::is_device_command(vkDestroyInstanceCmd.document_element()) == false);
+	}
 }
 
 TEST_CASE("feature parsing", "[feature][parser]")

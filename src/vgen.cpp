@@ -458,6 +458,40 @@ VKAPI_ATTR {1}({2})
 		// clang-format on
 	}
 
+	std::vector<feature_data> get_device_features(const std::vector<feature_data> &features, const command_map &commands)
+	{
+		// just copy features and filter. Not the fastest or most memory effecient way, but good enough
+		auto device_features = features;
+
+		for (auto &feature : device_features)
+		{
+			for (auto &section : feature.sections)
+				erase_if(section.commands, [&](const auto &command) { return !commands.at(command).is_device_command; });
+
+			erase_if(feature.sections, [](const auto &section) { return section.commands.empty(); });
+		}
+
+		erase_if(device_features, [](const auto &feature) { return feature.sections.empty(); });
+
+		return device_features;
+	}
+
+	extension_map get_device_extensions(const extension_map &extensions, const command_map &commands)
+	{
+		// just copy and filter. Not the fastest or most memory effecient way, but good enough
+		auto device_extensions = extensions;
+
+		for (auto it = cbegin(device_extensions); it != cend(device_extensions);)
+		{
+			if (!commands.at(it->second).is_device_command)
+				it = device_extensions.erase(it);
+			else
+				++it;
+		}
+
+		return device_extensions;
+	}
+
 	void write_header(fmt::memory_buffer &out, const std::vector<feature_data> &features, const extension_map &extensions, const command_map &commands)
 	{
 		auto now = [] {
@@ -575,6 +609,9 @@ void vgen_load_device_procs(VkDevice device, struct vgen_vulkan_api *vk);
 
 	void write_source(fmt::memory_buffer &out, const std::string_view vulkan_header_version, const std::vector<feature_data> &features, const extension_map &extensions, const command_map &commands)
 	{
+		const auto device_features = get_device_features(features, commands);
+		const auto device_extensions = get_device_extensions(extensions, commands);
+
 		fmt::format_to(out, R"(#include <vulkan_loader.h>
 
 #if !defined(VKLG_ASSERT_MACRO)
@@ -585,7 +622,7 @@ void vgen_load_device_procs(VkDevice device, struct vgen_vulkan_api *vk);
 #if VK_HEADER_VERSION > {0} && !defined(VK_NO_PROTOTYPES) && !defined(VGEN_VULKAN_LOADER_DISABLE_HEADER_CHECK)
 	#error "Generating prototypes for a version of vulkan than the loader expects, you may experience linking errors. " \
 		"Please check for a newer version of vulkan_loader at https://github.com/oracleoftroy/vulkan_loader " \
-		"or define VK_NO_PROTOTYPES for a purely dynamic interface. " \ 
+		"or define VK_NO_PROTOTYPES for a purely dynamic interface. " \
 		"You may also define VGEN_VULKAN_LOADER_DISABLE_HEADER_CHECK to skip this check."
 #endif
 
@@ -615,10 +652,10 @@ void vgen_load_device_procs(VkDevice device, struct vgen_vulkan_api *vk)
 {{
 )");
 
-		for (const auto &feature : features)
+		for (const auto &feature : device_features)
 			write_feature_device_init_struct(out, feature);
 
-		write_extensions_device_init_struct(out, extensions);
+		write_extensions_device_init_struct(out, device_extensions);
 
 		fmt::format_to(out, R"(}}
 
@@ -654,10 +691,10 @@ void vgen_load_device_procs(VkDevice device)
 {{
 )");
 
-		for (const auto &feature : features)
+		for (const auto &feature : device_features)
 			write_feature_device_init(out, feature);
 
-		write_extensions_device_init(out, extensions);
+		write_extensions_device_init(out, device_extensions);
 
 		fmt::format_to(out, R"(}}
 
