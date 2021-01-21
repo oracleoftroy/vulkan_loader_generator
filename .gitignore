@@ -1,14 +1,15 @@
 #editor config files and directories
-.vscode
-.vs
-CMakeSettings.json
+/.vscode
+/.vs
+/CMakeSettings.json
 
 # typical build directories
-build
-out
+/build
+/out
 
 # clangd cache
-.clangd
+/.clangd
+/.cache
 
 # build artifact that needs to be in root for clangd to work well
-compile_commands.json
+/compile_commands.json
