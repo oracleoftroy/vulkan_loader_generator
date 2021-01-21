@@ -246,3 +246,59 @@ TEST_CASE("extension parsing", "[extension][parser]")
 		REQUIRE(std::equal(range.first, range.second, begin(expected), end(expected), [](const auto &x, const auto &y) { return x.second == y; }));
 	}
 }
+
+TEST_CASE("skip disabled extensions", "[extension][parser]")
+{
+	auto doc = load_fragment(
+		R"xml(<?xml version="1.0" encoding="UTF-8"?>
+<registry>
+    <extensions comment="Vulkan extension interface definitions">
+        <extension name="VK_KHR_push_descriptor" number="81" type="device" author="KHR" requires="VK_KHR_get_physical_device_properties2" contact="Jeff Bolz @jeffbolznv" supported="disabled">
+            <require>
+                <enum value="2"                                             name="VK_KHR_PUSH_DESCRIPTOR_SPEC_VERSION"/>
+                <enum value="&quot;VK_KHR_push_descriptor&quot;"            name="VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME"/>
+                <enum offset="0" extends="VkStructureType"                  name="VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES_KHR"/>
+                <enum bitpos="0" extends="VkDescriptorSetLayoutCreateFlagBits"   name="VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR"  comment="Descriptors are pushed via flink:vkCmdPushDescriptorSetKHR"/>
+                <command name="vkCmdPushDescriptorSetKHR"/>
+                <type name="VkPhysicalDevicePushDescriptorPropertiesKHR"/>
+            </require>
+            <require feature="VK_VERSION_1_1">
+                <command name="vkCmdPushDescriptorSetWithTemplateKHR"/>
+                <enum value="1" extends="VkDescriptorUpdateTemplateType"    name="VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_PUSH_DESCRIPTORS_KHR" comment="Create descriptor update template for pushed descriptor updates"/>
+            </require>
+            <require extension="VK_KHR_descriptor_update_template">
+                <command name="vkCmdPushDescriptorSetWithTemplateKHR"/>
+                <enum value="1" extends="VkDescriptorUpdateTemplateType"    name="VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_PUSH_DESCRIPTORS_KHR" comment="Create descriptor update template for pushed descriptor updates"/>
+            </require>
+        </extension>
+        <extension name="VK_KHR_descriptor_update_template" number="86" type="device" author="KHR" contact="Markus Tavenrath @mtavenrath" supported="disabled" promotedto="VK_VERSION_1_1">
+            <require>
+                <enum value="1"                                             name="VK_KHR_DESCRIPTOR_UPDATE_TEMPLATE_SPEC_VERSION"/>
+                <enum value="&quot;VK_KHR_descriptor_update_template&quot;" name="VK_KHR_DESCRIPTOR_UPDATE_TEMPLATE_EXTENSION_NAME"/>
+                <enum extends="VkStructureType"                             name="VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO_KHR" alias="VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO"/>
+                <enum extends="VkObjectType"                                name="VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_KHR" alias="VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE"/>
+                <command name="vkCreateDescriptorUpdateTemplateKHR"/>
+                <command name="vkDestroyDescriptorUpdateTemplateKHR"/>
+                <command name="vkUpdateDescriptorSetWithTemplateKHR"/>
+                <type name="VkDescriptorUpdateTemplateKHR"/>
+                <type name="VkDescriptorUpdateTemplateCreateFlagsKHR"/>
+                <type name="VkDescriptorUpdateTemplateTypeKHR"/>
+                <type name="VkDescriptorUpdateTemplateEntryKHR"/>
+                <type name="VkDescriptorUpdateTemplateCreateInfoKHR"/>
+                <enum extends="VkDescriptorUpdateTemplateType"              name="VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_DESCRIPTOR_SET_KHR" alias="VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_DESCRIPTOR_SET"/>
+            </require>
+            <require extension="VK_KHR_push_descriptor">
+                <command name="vkCmdPushDescriptorSetWithTemplateKHR"/>
+                <enum value="1" extends="VkDescriptorUpdateTemplateType"    name="VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_PUSH_DESCRIPTORS_KHR" comment="Create descriptor update template for pushed descriptor updates"/>
+            </require>
+            <require extension="VK_EXT_debug_report">
+                <enum extends="VkDebugReportObjectTypeEXT"                  name="VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_KHR_EXT" alias="VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_EXT"/>
+            </require>
+        </extension>
+    </extensions>
+</registry>
+)xml");
+
+	auto extensions = vgen::read_extensions(doc);
+	REQUIRE(extensions.size() == 0);
+}

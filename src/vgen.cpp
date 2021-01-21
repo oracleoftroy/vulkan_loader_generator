@@ -183,18 +183,26 @@ namespace vgen
 		{
 			const auto &command_node = command.node();
 
+			// <command> parent is <require>
+			const auto &require_node = command_node.parent();
+
+			// <require> parent is <extension>
+			const auto &extension_node = require_node.parent();
+
+			// skip disabled extensions.
+			if (extension_node.attribute("supported").as_string() == "disabled"sv)
+				continue;
+
 			std::string name = command_node.attribute("name").as_string();
 			std::set<std::string> reqs;
 
-			// <command> parent is <require>, save any 'feature' and 'extension' attributes (might not have any)
-			const auto &require_node = command_node.parent();
+			// save any 'feature' and 'extension' attributes (might not have any) from <require> element
 			if (require_node.attribute("extension"))
 				reqs.emplace(defined(require_node.attribute("extension").as_string()));
 			if (require_node.attribute("feature"))
 				reqs.emplace(defined(require_node.attribute("feature").as_string()));
 
-			// <require> parent is <extension>, save the 'name' attribute
-			const auto &extension_node = require_node.parent();
+			// save the 'name' attribute from <extension> element
 			if (extension_node.attribute("name"))
 				reqs.emplace(defined(extension_node.attribute("name").as_string()));
 

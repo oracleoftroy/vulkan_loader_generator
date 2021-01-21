@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.15)
 project(vgen VERSION 1.0.0)
 
 include(cmake/PreventInSourceBuilds.cmake)
@@ -11,7 +11,9 @@ set_project_warnings(project_options)
 
 add_subdirectory(src)
 
-if(BUILD_TESTING)
+option(BUILD_TESTS "Build the test" ON)
+
+if(BUILD_TESTS)
 	enable_testing()
 	add_subdirectory(tests)
 endif()
