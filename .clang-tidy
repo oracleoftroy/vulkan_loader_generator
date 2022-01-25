@@ -1,7 +1,23 @@
 ---
-Checks:          '*,-fuchsia-*,-google-*,-zircon-*,-abseil-*,-modernize-use-trailing-return-type,-llvm-*'
+Checks: >
+    bugprone-*,
+    cppcoreguidelines-*,
+    -cppcoreguidelines-avoid-magic-numbers,
+    -cppcoreguidelines-macro-usage,
+    modernize-*,
+    performance-*,
+    portability-*,
+    readability-*,
+    -bugprone-exception-escape,
+    -readability-braces-around-statements,
+    -readability-function-cognitive-complexity,
+    -readability-implicit-bool-conversion,
+    -readability-magic-numbers,
+    -readability-named-parameter,
+    -readability-qualified-auto,
+    -readability-redundant-access-specifiers,
+    -readability-uppercase-literal-suffix,
+    -modernize-use-trailing-return-type
 WarningsAsErrors: '*'
 HeaderFilterRegex: ''
 FormatStyle:     none
-
-

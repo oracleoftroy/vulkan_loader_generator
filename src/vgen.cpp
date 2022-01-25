@@ -19,14 +19,15 @@ namespace vgen
 	{
 		if (auto it = commands.find(command); it != commands.end())
 			return it->second;
-		else
-			throw std::runtime_error(fmt::format("Command {0} not found in command map", command));
+
+		throw std::runtime_error(fmt::format("Command {0} not found in command map", command));
 	}
 
 	std::string read_full_text(const pugi::xml_node &node)
 	{
 		std::string result;
-		std::string sep = "";
+		std::string sep; // no separator for first item
+
 		for (auto &t : node.select_nodes("descendant-or-self::text()"))
 		{
 			result += sep + t.node().text().as_string(" ");
@@ -108,9 +109,7 @@ namespace vgen
 			// The alias can refer to another alias, so keep looking up aliases until we find something in the command map
 			while (iter == end(command_map))
 			{
-				if (auto alias_iter = aliases.find(command_name); alias_iter == end(aliases))
-					break;
-				else
+				if (auto alias_iter = aliases.find(command_name); alias_iter != end(aliases))
 				{
 					command_name = alias_iter->second;
 					iter = command_map.find(command_name);
