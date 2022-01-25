@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(vgen VERSION 1.0.0)
+project(vgen VERSION 2.0.1)
 
 include(cmake/PreventInSourceBuilds.cmake)
 include(cmake/StandardProjectSettings.cmake)

@@ -4,6 +4,7 @@
 
 #include <array>
 #include <chrono>
+#include <iterator>
 #include <stdexcept>
 #include <utility>
 
@@ -240,23 +241,23 @@ namespace vgen
 	void write_feature_commands(fmt::memory_buffer &out, const feature_data &feature, Fn func, option_comments comments = option_comments::write_comments)
 	// clang-format on
 	{
-		format_to(out, "\n");
+		format_to(std::back_inserter(out), "\n");
 		if (comments == option_comments::write_comments)
-			format_to(out, "{0}", feature.comment);
+			format_to(std::back_inserter(out), "{0}", feature.comment);
 
 		write_guard_start(out, feature.name);
 
 		for (const auto &section : feature.sections)
 		{
-			format_to(out, "\n");
+			format_to(std::back_inserter(out), "\n");
 			if (comments == option_comments::write_comments)
-				format_to(out, "{0}", section.comment);
+				format_to(std::back_inserter(out), "{0}", section.comment);
 
 			for (const auto &command : section.commands)
 				func(command);
 		}
 
-		format_to(out, "\n");
+		format_to(std::back_inserter(out), "\n");
 		write_guard_end(out, feature.name);
 	}
 
@@ -274,17 +275,17 @@ namespace vgen
 			if (!current || *current != reqs)
 			{
 				if (current)
-					format_to(out, "#endif // {0}\n", fmt::join(*current, " || "));
+					format_to(std::back_inserter(out), "#endif // {0}\n", fmt::join(*current, " || "));
 
 				current = &reqs;
-				format_to(out, "#if {0}\n", fmt::join(*current, " || "));
+				format_to(std::back_inserter(out), "#if {0}\n", fmt::join(*current, " || "));
 			}
 
 			func(command);
 		}
 
 		if (current)
-			format_to(out, "#endif // {0}\n", fmt::join(*current, " || "));
+			format_to(std::back_inserter(out), "#endif // {0}\n", fmt::join(*current, " || "));
 	}
 
 	std::string read_vulkan_header_version(const pugi::xml_document &doc)
@@ -295,17 +296,17 @@ namespace vgen
 
 	void write_guard_start(fmt::memory_buffer &out, const std::string &guard)
 	{
-		fmt::format_to(out, "#if defined({0})\n", guard);
+		fmt::format_to(std::back_inserter(out), "#if defined({0})\n", guard);
 	}
 
 	void write_guard_end(fmt::memory_buffer &out, const std::string &guard)
 	{
-		fmt::format_to(out, "#endif // defined({0})\n", guard);
+		fmt::format_to(std::back_inserter(out), "#endif // defined({0})\n", guard);
 	}
 
 	void write_command_definition(fmt::memory_buffer &out, const command_data &command)
 	{
-		format_to(out,
+		format_to(std::back_inserter(out),
 			R"(
 {5}static PFN_{0} pfn_{0};
 VKAPI_ATTR {1}({2})
@@ -337,13 +338,13 @@ VKAPI_ATTR {1}({2})
 	void write_struct_command_field(fmt::memory_buffer &out, const command_data &command)
 	{
 		const std::string_view tab = command.comment.empty() ? "" : "\t";
-		format_to(out, "\t{1}{2}PFN_{0} {0};\n", command.name, command.comment, tab);
+		format_to(std::back_inserter(out), "\t{1}{2}PFN_{0} {0};\n", command.name, command.comment, tab);
 	}
 
 	void write_struct_section_fields(fmt::memory_buffer &out, const section_data &section, const command_map &commands)
 	{
 		const std::string_view tab = section.comment.empty() ? "" : "\t";
-		format_to(out, "\n{1}{0}\n", section.comment, tab);
+		format_to(std::back_inserter(out), "\n{1}{0}\n", section.comment, tab);
 
 		for (const auto &command : section.commands)
 			write_struct_command_field(out, find_command(command, commands));
@@ -351,13 +352,13 @@ VKAPI_ATTR {1}({2})
 
 	void write_struct_feature_fields(fmt::memory_buffer &out, const feature_data &feature, const command_map &commands)
 	{
-		format_to(out, "\n{0}", feature.comment);
+		format_to(std::back_inserter(out), "\n{0}", feature.comment);
 		write_guard_start(out, feature.name);
 
 		for (const auto &section : feature.sections)
 			write_struct_section_fields(out, section, commands);
 
-		format_to(out, "\n");
+		format_to(std::back_inserter(out), "\n");
 		write_guard_end(out, feature.name);
 	}
 
@@ -376,7 +377,7 @@ VKAPI_ATTR {1}({2})
 				if (std::find(begin(global_functions), end(global_functions), command) != end(global_functions))
 					return;
 
-				format_to(out, "\tpfn_{0} = (PFN_{0})vkGetInstanceProcAddr(instance, \"{0}\");\n", command);
+				format_to(std::back_inserter(out), "\tpfn_{0} = (PFN_{0})vkGetInstanceProcAddr(instance, \"{0}\");\n", command);
 			}, option_comments::no_comments
 		);
 		// clang-format on
@@ -387,7 +388,7 @@ VKAPI_ATTR {1}({2})
 		// clang-format off
 		write_feature_commands(out, feature, [&](const std::string &command)
 		{
-			format_to(out, "\tpfn_{0} = (PFN_{0})vkGetDeviceProcAddr(device, \"{0}\");\n", command);
+			format_to(std::back_inserter(out), "\tpfn_{0} = (PFN_{0})vkGetDeviceProcAddr(device, \"{0}\");\n", command);
 		}, option_comments::no_comments);
 		// clang-format on
 	}
@@ -398,7 +399,7 @@ VKAPI_ATTR {1}({2})
 		write_extension_commands(out, extensions,
 			[&](const std::string &command)
 			{
-				format_to(out, "\tpfn_{0} = (PFN_{0})vkGetInstanceProcAddr(instance, \"{0}\");\n",  command);
+				format_to(std::back_inserter(out), "\tpfn_{0} = (PFN_{0})vkGetInstanceProcAddr(instance, \"{0}\");\n",  command);
 			}
 		);
 		// clang-format on
@@ -410,7 +411,7 @@ VKAPI_ATTR {1}({2})
 		write_extension_commands(out, extensions,
 			[&](const std::string &command)
 			{
-				format_to(out, "\tpfn_{0} = (PFN_{0})vkGetDeviceProcAddr(device, \"{0}\");\n",  command);
+				format_to(std::back_inserter(out), "\tpfn_{0} = (PFN_{0})vkGetDeviceProcAddr(device, \"{0}\");\n",  command);
 			}
 		);
 		// clang-format on
@@ -426,7 +427,7 @@ VKAPI_ATTR {1}({2})
 				if (std::find(begin(global_functions), end(global_functions), command) != end(global_functions))
 					return;
 
-				format_to(out, "\tvk->{0} = (PFN_{0})vk->vkGetInstanceProcAddr(instance, \"{0}\");\n", command);
+				format_to(std::back_inserter(out), "\tvk->{0} = (PFN_{0})vk->vkGetInstanceProcAddr(instance, \"{0}\");\n", command);
 			}, option_comments::no_comments
 		);
 		// clang-format on
@@ -437,7 +438,7 @@ VKAPI_ATTR {1}({2})
 		// clang-format off
 		write_feature_commands(out, feature, [&](const std::string &command)
 		{
-			format_to(out, "\tvk->{0} = (PFN_{0})vk->vkGetDeviceProcAddr(device, \"{0}\");\n", command);
+			format_to(std::back_inserter(out), "\tvk->{0} = (PFN_{0})vk->vkGetDeviceProcAddr(device, \"{0}\");\n", command);
 		}, option_comments::no_comments);
 		// clang-format on
 	}
@@ -448,7 +449,7 @@ VKAPI_ATTR {1}({2})
 		write_extension_commands(out, extensions,
 			[&](const std::string &command)
 			{
-				format_to(out, "\tvk->{0} = (PFN_{0})vk->vkGetInstanceProcAddr(instance, \"{0}\");\n", command);
+				format_to(std::back_inserter(out), "\tvk->{0} = (PFN_{0})vk->vkGetInstanceProcAddr(instance, \"{0}\");\n", command);
 			}
 		);
 		// clang-format on
@@ -460,7 +461,7 @@ VKAPI_ATTR {1}({2})
 		write_extension_commands(out, extensions,
 			[&](const std::string &command)
 			{
-				format_to(out, "\tvk->{0} = (PFN_{0})vk->vkGetDeviceProcAddr(device, \"{0}\");\n", command);
+				format_to(std::back_inserter(out), "\tvk->{0} = (PFN_{0})vk->vkGetDeviceProcAddr(device, \"{0}\");\n", command);
 			}
 		);
 		// clang-format on
@@ -509,7 +510,7 @@ VKAPI_ATTR {1}({2})
 
 		// header guard, preamble, and sanity checks
 
-		format_to(out, R"header(#if !defined(VGEN_VULKAN_LOADER_HEADER)
+		format_to(std::back_inserter(out), R"header(#if !defined(VGEN_VULKAN_LOADER_HEADER)
 #define VGEN_VULKAN_LOADER_HEADER
 
 /*******************************************************************************
@@ -581,7 +582,7 @@ extern "C" {{
 		// structs for dynamic loading (always available / available by default)
 
 		// start of struct
-		fmt::format_to(out, R"(
+		fmt::format_to(std::back_inserter(out), R"(
 #if !defined(VK_NO_PROTOTYPES)
 
 void vgen_init_vulkan_loader(PFN_vkGetInstanceProcAddr get_address);
@@ -599,7 +600,7 @@ struct vgen_vulkan_api
 		write_struct_extension_fields(out, extensions, commands);
 
 		// end of struct
-		fmt::format_to(out, R"(}};
+		fmt::format_to(std::back_inserter(out), R"(}};
 
 void vgen_init_vulkan_loader(PFN_vkGetInstanceProcAddr get_address, struct vgen_vulkan_api *vk);
 void vgen_load_instance_procs(VkInstance instance, struct vgen_vulkan_api *vk);
@@ -620,7 +621,7 @@ void vgen_load_device_procs(VkDevice device, struct vgen_vulkan_api *vk);
 		const auto device_features = get_device_features(features, commands);
 		const auto device_extensions = get_device_extensions(extensions, commands);
 
-		fmt::format_to(out, R"(#include <vulkan_loader.h>
+		fmt::format_to(std::back_inserter(out), R"(#include <vulkan_loader.h>
 
 #if !defined(VKLG_ASSERT_MACRO)
 	#include <assert.h>
@@ -654,7 +655,7 @@ void vgen_load_instance_procs(VkInstance instance, struct vgen_vulkan_api *vk)
 
 		write_extensions_instance_init_struct(out, extensions);
 
-		fmt::format_to(out, R"(}}
+		fmt::format_to(std::back_inserter(out), R"(}}
 
 void vgen_load_device_procs(VkDevice device, struct vgen_vulkan_api *vk)
 {{
@@ -665,7 +666,7 @@ void vgen_load_device_procs(VkDevice device, struct vgen_vulkan_api *vk)
 
 		write_extensions_device_init_struct(out, device_extensions);
 
-		fmt::format_to(out, R"(}}
+		fmt::format_to(std::back_inserter(out), R"(}}
 
 #else // defined(VK_NO_PROTOTYPES)
 )");
@@ -675,7 +676,7 @@ void vgen_load_device_procs(VkDevice device, struct vgen_vulkan_api *vk)
 
 		write_extension_definitions(out, extensions, commands);
 
-		fmt::format_to(out, R"(
+		fmt::format_to(std::back_inserter(out), R"(
 void vgen_init_vulkan_loader(PFN_vkGetInstanceProcAddr get_address)
 {{
 	pfn_vkGetInstanceProcAddr = get_address;
@@ -693,7 +694,7 @@ void vgen_load_instance_procs(VkInstance instance)
 
 		write_extensions_instance_init(out, extensions);
 
-		fmt::format_to(out, R"(}}
+		fmt::format_to(std::back_inserter(out), R"(}}
 
 void vgen_load_device_procs(VkDevice device)
 {{
@@ -704,7 +705,7 @@ void vgen_load_device_procs(VkDevice device)
 
 		write_extensions_device_init(out, device_extensions);
 
-		fmt::format_to(out, R"(}}
+		fmt::format_to(std::back_inserter(out), R"(}}
 
 #endif // defined(VK_NO_PROTOTYPES)
 )");

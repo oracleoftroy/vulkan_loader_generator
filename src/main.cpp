@@ -89,8 +89,8 @@ int main(int argc, char *argv[])
 			write_source(source, version, features, extensions, commands);
 			auto source_path = output_dir / fs::path("vulkan_loader.c");
 			fmt::print(minor_style, "Writing {0}\n", source_path.string());
-			std::ofstream header_file(source_path);
-			header_file << to_string(source);
+			std::ofstream source_file(source_path);
+			source_file << to_string(source);
 		}
 
 		fmt::print(major_style, "Done!\n");
