@@ -1,6 +1,6 @@
-add_executable(vgen-tests "catch-main.cpp" "vgen-parser.cpp" "vgen-output.cpp")
+add_executable(vgen-tests "vgen-parser.cpp" "vgen-output.cpp")
 find_package(Catch2 CONFIG REQUIRED)
-target_link_libraries(vgen-tests PRIVATE project_options vgen-lib Catch2::Catch2)
+target_link_libraries(vgen-tests PRIVATE project_options vgen-lib Catch2::Catch2WithMain)
 
 include(CTest)
 include(Catch)
