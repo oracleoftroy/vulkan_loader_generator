@@ -8,7 +8,7 @@ if(${USE_VCPKG})
 		GIT_REPOSITORY https://github.com/microsoft/vcpkg.git
 		GIT_TAG master
 		GIT_SHALLOW true
-		PATCH_COMMAND cmake -E rm "$<IF:${CMAKE_HOST_WIN32},vcpkg.exe,vcpkg>"
+		PATCH_COMMAND cmake -E rm -f "$<IF:${CMAKE_HOST_WIN32},vcpkg.exe,vcpkg>"
 	)
 
 	FetchContent_MakeAvailable(vcpkg)
